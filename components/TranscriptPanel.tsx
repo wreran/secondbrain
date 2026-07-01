@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, Fingerprint, MessageSquare, Mic, Plus, ScanSearch, Square, Users, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Fingerprint, MessageSquare, Mic, Plus, ScanSearch, Square, Trash2, Users, X } from 'lucide-react';
 import { createSpeakerProfile } from '@/lib/workspace-store';
 import {
   type SpeakerProfile,
@@ -14,6 +14,7 @@ interface TranscriptPanelProps {
   interimTranscript?: string;
   isRecording: boolean;
   onAddEntry: (text: string, speaker: string, speakerId?: string) => void;
+  onRemoveEntry: (entryId: string) => void;
   speakerProfiles: SpeakerProfile[];
   onUpdateSpeakerProfiles: (profiles: SpeakerProfile[]) => void;
   onEnrollSpeaker: (speaker: SpeakerProfile) => void;
@@ -68,6 +69,7 @@ export function TranscriptPanel({
   interimTranscript,
   isRecording,
   onAddEntry,
+  onRemoveEntry,
   speakerProfiles,
   onUpdateSpeakerProfiles,
   onEnrollSpeaker,
@@ -381,10 +383,20 @@ export function TranscriptPanel({
                 style={{ background: 'rgba(20, 12, 42, 0.5)' }}
               >
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-semibold text-pink">
-                    {entry.speaker}
-                  </span>
-                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{entry.timestamp}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs font-semibold text-pink">
+                      {entry.speaker}
+                    </span>
+                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{entry.timestamp}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveEntry(entry.id)}
+                    className="rounded-full p-1 transition-colors hover:bg-white/5"
+                    aria-label={`Remove transcript entry from ${entry.speaker}`}
+                  >
+                    <Trash2 className="w-3 h-3" style={{ color: 'var(--accent-coral)' }} />
+                  </button>
                 </div>
                 <p className="text-xs leading-relaxed text-secondary">
                   {entry.text}

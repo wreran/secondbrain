@@ -32,10 +32,10 @@ const RELATION_STYLES: Record<
   }
 > = {
   extends: {
-    stroke: 'rgba(192, 132, 252, 0.7)',
+    stroke: 'rgba(255, 255, 255, 0.72)',
     text: '#e9d5ff',
     background: 'rgba(88, 28, 135, 0.88)',
-    border: 'rgba(192, 132, 252, 0.4)',
+    border: 'rgba(255, 255, 255, 0.28)',
   },
   supports: {
     stroke: 'rgba(250, 204, 21, 0.78)',
@@ -111,9 +111,9 @@ function toFlowEdges(graphEdges: GraphEdge[], selectedEdgeId: string | null): Ed
           : edge.relation
             ? RELATION_STYLES[edge.relation].stroke
             : edge.type === 'active'
-              ? 'rgba(168, 85, 247, 0.5)'
-              : 'rgba(168, 85, 247, 0.2)',
-      strokeWidth: edge.id === selectedEdgeId ? 3 : edge.relation ? 2.2 : edge.type === 'active' ? 2 : 1,
+              ? 'rgba(255, 255, 255, 0.78)'
+              : 'rgba(255, 255, 255, 0.56)',
+      strokeWidth: edge.id === selectedEdgeId ? 3.4 : edge.relation ? 2.8 : edge.type === 'active' ? 2.5 : 2.1,
     },
   }));
 }
@@ -285,7 +285,7 @@ export function NeuralGraph({
         draggable
         attributionPosition="bottom-right"
         proOptions={{ hideAttribution: true }}
-        connectionLineStyle={{ stroke: 'rgba(192, 132, 252, 0.7)', strokeWidth: 2.2 }}
+        connectionLineStyle={{ stroke: 'rgba(255, 255, 255, 0.72)', strokeWidth: 3 }}
       >
         <Background color="rgba(168, 85, 247, 0.04)" gap={24} size={1} />
         <Controls

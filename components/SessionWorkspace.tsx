@@ -135,6 +135,8 @@ export function SessionWorkspace({ projectId }: { projectId?: string | null }) {
   const clearHighlightTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const autoAssignTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isAutoAssigningRef = useRef(false);
+  const shouldKeepRecordingRef = useRef(false);
+  const restartRecognitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionShellRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef<Array<{ nodes: GraphNode[]; edges: GraphEdge[]; selectedNodeId: string | null }>>([]);
   const speechSupported = useSyncExternalStore(
@@ -568,6 +570,44 @@ export function SessionWorkspace({ projectId }: { projectId?: string | null }) {
     [evaluateEntryForNode, requestSpeakerAssignments, session?.transcript, updateSession]
   );
 
+  const removeTranscriptEntry = useCallback(
+    (entryId: string) => {
+      updateSession((currentSession) => {
+        const nextTranscript = currentSession.transcript.filter((entry) => entry.id !== entryId);
+
+        return {
+          ...currentSession,
+          transcript: nextTranscript,
+          nodes: currentSession.nodes.map((node) => {
+            const transcriptEntryIds = node.data?.transcriptEntryIds;
+            if (!transcriptEntryIds?.includes(entryId)) {
+              return node;
+            }
+
+            const nextTranscriptEntryIds = transcriptEntryIds.filter((linkedEntryId) => linkedEntryId !== entryId);
+
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                transcriptEntryIds: nextTranscriptEntryIds.length > 0 ? nextTranscriptEntryIds : undefined,
+              },
+            };
+          }),
+          report: currentSession.report
+            ? {
+                ...currentSession.report,
+                totalTranscripts: nextTranscript.length,
+              }
+            : currentSession.report,
+        };
+      });
+
+      setRecordingStatus('Transcript entry removed.');
+    },
+    [updateSession]
+  );
+
   const classifySpeakers = useCallback(async () => {
     if (!session) {
       return;
@@ -604,12 +644,17 @@ export function SessionWorkspace({ projectId }: { projectId?: string | null }) {
       return;
     }
 
-    if (recognitionRef.current && isRecording) {
-      recognitionRef.current.stop();
-      recognitionRef.current = null;
-      mediaRecorderRef.current?.stop();
-      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
+      if (recognitionRef.current && isRecording) {
+        shouldKeepRecordingRef.current = false;
+        if (restartRecognitionTimeoutRef.current) {
+          clearTimeout(restartRecognitionTimeoutRef.current);
+          restartRecognitionTimeoutRef.current = null;
+        }
+        recognitionRef.current.stop();
+        recognitionRef.current = null;
+        mediaRecorderRef.current?.stop();
+        mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
       setIsRecording(false);
       setInterimTranscript('');
       setRecordingStatus('Recording stopped. Your finalized transcript entries stay in the list below.');
@@ -656,14 +701,39 @@ export function SessionWorkspace({ projectId }: { projectId?: string | null }) {
       }
     };
 
-    recognition.onerror = (event) => {
-      setStatusMessage(`Recording error: ${event.error}`);
-      setIsRecording(false);
-      setInterimTranscript('');
-      setRecordingStatus(`Recording error: ${event.error}. If microphone permission was blocked, allow it and try again.`);
-    };
+      recognition.onerror = (event) => {
+        setStatusMessage(`Recording error: ${event.error}`);
+        setIsRecording(false);
+        setInterimTranscript('');
+        shouldKeepRecordingRef.current = false;
+        setRecordingStatus(`Recording error: ${event.error}. If microphone permission was blocked, allow it and try again.`);
+      };
 
-    recognition.onend = () => {
+      recognition.onend = () => {
+      if (shouldKeepRecordingRef.current) {
+        setInterimTranscript('');
+        setRecordingStatus('Microphone paused briefly. Reconnecting live transcription...');
+        restartRecognitionTimeoutRef.current = setTimeout(() => {
+          try {
+            recognition.start();
+            recognitionRef.current = recognition;
+            setIsRecording(true);
+            setRecordingStatus('Microphone active again. Live transcription resumed.');
+          } catch {
+            shouldKeepRecordingRef.current = false;
+            mediaRecorderRef.current?.stop();
+            mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+            mediaStreamRef.current = null;
+            recognitionRef.current = null;
+            setIsRecording(false);
+            setRecordingStatus('Microphone idle. Press Start Recording again to resume live transcription.');
+          } finally {
+            restartRecognitionTimeoutRef.current = null;
+          }
+        }, 250);
+        return;
+      }
+
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
       }
@@ -671,15 +741,18 @@ export function SessionWorkspace({ projectId }: { projectId?: string | null }) {
       setInterimTranscript('');
       recognitionRef.current = null;
       setRecordingStatus('Microphone idle. If you stopped speaking for a while, press Start Recording again to resume.');
-    };
+      };
 
-    const startRecognition = () => {
-      recognition.start();
-      recognitionRef.current = recognition;
-      recordingStartedAtRef.current = Date.now();
-      setStatusMessage('Recording started.');
-      setIsRecording(true);
-    };
+      const startRecognition = () => {
+        recognition.start();
+        recognitionRef.current = recognition;
+      if (recordingStartedAtRef.current === null) {
+        recordingStartedAtRef.current = Date.now();
+      }
+        setStatusMessage('Recording started.');
+        setIsRecording(true);
+        shouldKeepRecordingRef.current = true;
+      };
 
     if (!canRecordAudio || !navigator.mediaDevices?.getUserMedia) {
       startRecognition();
@@ -850,6 +923,11 @@ export function SessionWorkspace({ projectId }: { projectId?: string | null }) {
     audioBlobRef.current = null;
     audioOffsetMsRef.current = 0;
     recordingStartedAtRef.current = null;
+    shouldKeepRecordingRef.current = false;
+    if (restartRecognitionTimeoutRef.current) {
+      clearTimeout(restartRecognitionTimeoutRef.current);
+      restartRecognitionTimeoutRef.current = null;
+    }
     if (autoAssignTimeoutRef.current) {
       clearTimeout(autoAssignTimeoutRef.current);
       autoAssignTimeoutRef.current = null;
@@ -858,13 +936,17 @@ export function SessionWorkspace({ projectId }: { projectId?: string | null }) {
   }, [session?.id]);
 
   useEffect(() => {
-    return () => {
-      if (autoAssignTimeoutRef.current) {
-        clearTimeout(autoAssignTimeoutRef.current);
-      }
-      mediaRecorderRef.current?.stop();
-      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-      enrollmentRecorderRef.current?.stop();
+      return () => {
+        if (autoAssignTimeoutRef.current) {
+          clearTimeout(autoAssignTimeoutRef.current);
+        }
+        if (restartRecognitionTimeoutRef.current) {
+          clearTimeout(restartRecognitionTimeoutRef.current);
+        }
+        shouldKeepRecordingRef.current = false;
+        mediaRecorderRef.current?.stop();
+        mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+        enrollmentRecorderRef.current?.stop();
       enrollmentStreamRef.current?.getTracks().forEach((track) => track.stop());
     };
   }, []);
@@ -1176,6 +1258,7 @@ export function SessionWorkspace({ projectId }: { projectId?: string | null }) {
               interimTranscript={interimTranscript}
               isRecording={isRecording}
               onAddEntry={addTranscriptEntry}
+              onRemoveEntry={removeTranscriptEntry}
               speakerProfiles={speakerProfiles}
               onUpdateSpeakerProfiles={updateSpeakerProfiles}
               onEnrollSpeaker={enrollSpeaker}

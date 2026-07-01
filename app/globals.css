@@ -609,14 +609,14 @@
   cursor: pointer;
 }
 .react-flow__edge-path {
-  stroke: rgba(168, 85, 247, 0.25) !important;
-  stroke-width: 1.5px !important;
-  filter: drop-shadow(0 0 2px rgba(168, 85, 247, 0.2));
+  stroke: rgba(255, 255, 255, 0.58) !important;
+  stroke-width: 2.3px !important;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.28));
 }
 .react-flow__edge-path.animated {
-  stroke: rgba(168, 85, 247, 0.55) !important;
-  stroke-width: 2px !important;
-  filter: drop-shadow(0 0 4px rgba(168, 85, 247, 0.35));
+  stroke: rgba(255, 255, 255, 0.76) !important;
+  stroke-width: 2.9px !important;
+  filter: drop-shadow(0 0 7px rgba(255, 255, 255, 0.36));
   stroke-dasharray: 10 5;
   animation: synapse-flow 2s linear infinite;
 }
